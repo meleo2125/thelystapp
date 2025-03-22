@@ -1,41 +1,38 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getAuth } from "firebase-admin/auth";
-import { cookies } from "next/headers";
-
-// Define public routes that don't require authentication
-const publicRoutes = ["/login", "/register", "/api/auth/send-otp", "/api/auth/verify-otp"];
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
 
 export async function middleware(request: NextRequest) {
-  const session = cookies().get("session")?.value;
+  const session = request.cookies.get('auth-session');
+  const { pathname } = request.nextUrl;
   
-  // Check if the path is public
-  const isPublicRoute = publicRoutes.some(route => 
-    request.nextUrl.pathname === route || 
-    request.nextUrl.pathname.startsWith(route + "/")
-  );
+  // Public routes (not protected)
+  const publicRoutes = ['/login', '/register', '/verify-otp'];
+  const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
   
-  // If there's no session and the route is not public, redirect to login
-  if (!session && !isPublicRoute) {
-    return NextResponse.redirect(new URL("/login", request.url));
+  // API routes should be handled separately
+  if (pathname.startsWith('/api')) {
+    return NextResponse.next();
   }
   
-  // If there's a session and the user is trying to access login or register, redirect to home
-  if (session && (request.nextUrl.pathname === "/login" || request.nextUrl.pathname === "/register")) {
-    return NextResponse.redirect(new URL("/", request.url));
+  // For security, treat session as valid only if it exists
+  // The actual verification will happen in the API routes with Firebase Admin
+  const hasSession = !!session?.value;
+  
+  // If the user is not logged in and trying to access a protected route, redirect to login
+  if (!hasSession && !isPublicRoute) {
+    const url = new URL('/login', request.url);
+    url.searchParams.set('callbackUrl', encodeURI(pathname));
+    return NextResponse.redirect(url);
+  }
+  
+  // If the user is logged in and trying to access login/register, redirect to home
+  if (hasSession && isPublicRoute) {
+    return NextResponse.redirect(new URL('/home', request.url));
   }
   
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public (public files)
-     */
-    "/((?!_next/static|_next/image|favicon.ico|public).*)",
-  ],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|public).*)'],
 }; 

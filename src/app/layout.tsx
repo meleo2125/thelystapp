@@ -1,14 +1,13 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
-import { AuthProvider } from "@/context/AuthContext";
-import { Toaster } from "react-hot-toast";
-
-const inter = Inter({ subsets: ["latin"] });
+import Providers from "../components/Providers";
 
 export const metadata: Metadata = {
-  title: "TheLyst - Your Personal Tracking App",
-  description: "Track your favorite TV shows, movies, anime and more",
+  title: "TheLyst - Track Your Media",
+  description: "Track and organize your favorite TV shows, movies, anime and more",
+  icons: {
+    icon: '/lyst.png',
+  }
 };
 
 export default function RootLayout({
@@ -18,11 +17,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={inter.className}>
-        <AuthProvider>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+      </head>
+      <body className="antialiased min-h-screen">
+        <Providers>
           {children}
-          <Toaster position="top-right" />
-        </AuthProvider>
+        </Providers>
       </body>
     </html>
   );
