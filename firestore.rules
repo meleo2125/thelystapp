@@ -1,0 +1,84 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+    function isValidStatus(s) {
+      return s in ['watching', 'completed', 'plan_to_watch', 'on_hold', 'dropped'];
+    }
+    function isValidType(t) {
+      return t in ['movie', 'tv', 'anime'];
+    }
+    function isValidScore(s) {
+      return s == null || (s is int && s >= 1 && s <= 10);
+    }
+
+    // User profile document
+    match /users/{uid} {
+      allow read: if isOwner(uid)
+        || (resource.data.preferences.profilePublic == true);
+      allow create: if isOwner(uid)
+        && request.resource.data.uid == uid
+        && request.resource.data.email is string
+        && request.resource.data.username is string
+        && request.resource.data.username.size() >= 3
+        && request.resource.data.username.size() <= 30
+        && request.resource.data.username.matches('^[a-z0-9_]+$');
+      allow update: if isOwner(uid)
+        // Username is immutable here — must go through a Cloud Function or
+        // server route that handles the /usernames/{name} transaction.
+        && request.resource.data.username == resource.data.username
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.email == resource.data.email;
+      allow delete: if false;  // Soft-delete only via server route
+
+      // List subcollection
+      match /list/{entryId} {
+        allow read: if isOwner(uid)
+          || (get(/databases/$(database)/documents/users/$(uid)).data.preferences.profilePublic == true);
+        allow create: if isOwner(uid)
+          && entryId == request.resource.data.type + '-' + string(request.resource.data.sourceId)
+          && isValidType(request.resource.data.type)
+          && isValidStatus(request.resource.data.status)
+          && isValidScore(request.resource.data.score)
+          && request.resource.data.sourceId is int
+          && request.resource.data.progress is int
+          && request.resource.data.progress >= 0
+          && request.resource.data.notes.size() <= 2000
+          && request.resource.data.cache.title is string;
+        allow update: if isOwner(uid)
+          // sourceId and type are immutable
+          && request.resource.data.type == resource.data.type
+          && request.resource.data.sourceId == resource.data.sourceId
+          && isValidStatus(request.resource.data.status)
+          && isValidScore(request.resource.data.score)
+          && request.resource.data.progress is int
+          && request.resource.data.progress >= 0
+          && request.resource.data.notes.size() <= 2000;
+        allow delete: if isOwner(uid);
+      }
+    }
+
+    // Username uniqueness collection
+    match /usernames/{username} {
+      // Anyone can read (to check availability)
+      allow read: if true;
+      // Only writeable via Admin SDK (server route)
+      allow write: if false;
+    }
+
+    // OTP and password reset — Admin SDK only
+    match /otps/{email} {
+      allow read, write: if false;
+    }
+    match /passwordResets/{email} {
+      allow read, write: if false;
+    }
+  }
+}

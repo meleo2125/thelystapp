@@ -1,32 +1,34 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-  --primary: #e11d48;
-  --primary-dark: #be123c;
-  --primary-light: #fb7185;
-  --secondary: #171717;
-  --secondary-light: #404040;
-  --accent: #f8fafc;
-  --muted: #9ca3af;
-  --border: #e5e7eb;
+  --background: #12131a;
+  --foreground: #e2e1eb;
+  --primary: #e8001c;
+  --primary-dark: #93000d;
+  --primary-light: #ffb4ac;
+  --secondary: #1e1f26;
+  --secondary-light: #282a31;
+  --accent: #e9bcb7;
+  --muted: #a1a1aa;
+  --border: rgba(255, 255, 255, 0.08);
+  --rating: #F5A623;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-dark: var(--primary-dark);
+  --color-primary-light: var(--primary-light);
+  --color-secondary: var(--secondary);
+  --color-secondary-light: var(--secondary-light);
+  --color-accent: var(--accent);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-rating: var(--rating);
+  
   --font-sans: 'Inter', sans-serif;
-  --font-heading: 'Poppins', sans-serif;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #f8fafc;
-    --border: #262626;
-    --accent: #171717;
-  }
+  --font-heading: 'Montserrat', sans-serif;
 }
 
 @keyframes fadeIn {
@@ -52,7 +54,7 @@ body {
 
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-heading);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .fade-in {
@@ -63,28 +65,32 @@ h1, h2, h3, h4, h5, h6 {
   animation: slideIn 0.5s ease-out forwards;
 }
 
-.btn-primary {
-  background-color: var(--primary);
-  color: white;
-  transition: all 0.2s ease;
-}
-
-.btn-primary:hover {
-  background-color: var(--primary-dark);
-  transform: translateY(-1px);
-}
-
-.btn-secondary {
-  background-color: var(--secondary);
-  color: white;
-  transition: all 0.2s ease;
-}
-
-.btn-secondary:hover {
-  background-color: var(--secondary-light);
-  transform: translateY(-1px);
-}
-
 .logo-pulse {
   animation: pulse 2s infinite;
-} 
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(20px);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.2);
+  border-right: 1px solid rgba(0, 0, 0, 0.2);
+}
+
+.media-glow {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.media-glow:hover {
+  border-color: rgba(232, 0, 28, 0.4);
+  box-shadow: 0 0 20px rgba(232, 0, 28, 0.15);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

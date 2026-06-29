@@ -1,6 +1,6 @@
 import nodemailer from 'nodemailer';
-import { doc, setDoc, Timestamp, getDoc } from 'firebase/firestore';
-import { db } from './firebase';
+import { adminDb } from './firebaseAdmin';
+import { Timestamp } from 'firebase-admin/firestore';
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -15,10 +15,9 @@ export const generateOTP = (): string => {
 };
 
 export const storeOTP = async (email: string, otp: string, registrationId?: string): Promise<void> => {
-  // Store OTP with 5-minute expiration
   const expiresAt = Timestamp.fromDate(new Date(Date.now() + 5 * 60 * 1000));
   
-  await setDoc(doc(db, 'otps', email), {
+  await adminDb.collection('otps').doc(email).set({
     otp,
     email,
     expiresAt,
@@ -61,28 +60,37 @@ export const sendOTPEmail = async (email: string, otp: string): Promise<void> =>
   });
 };
 
-export const verifyOTP = async (email: string, inputOTP: string): Promise<boolean> => {
-  try {
-    // Get OTP document from Firestore directly
-    const otpDocRef = doc(db, 'otps', email);
-    const otpDoc = await getDoc(otpDocRef);
-    
-    if (!otpDoc.exists()) {
-      return false;
-    }
-    
-    const otpData = otpDoc.data();
-    const now = Timestamp.now();
-    
-    // Check if OTP is expired
-    if (otpData.expiresAt.seconds < now.seconds) {
-      return false;
-    }
-    
-    // Verify OTP
-    return otpData.otp === inputOTP;
-  } catch (error) {
-    console.error('Error verifying OTP:', error);
-    return false;
-  }
-}; 
+export const sendResetEmail = async (email: string, resetLink: string): Promise<void> => {
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to: email,
+    subject: 'Reset your TheLyst password',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
+        <h2 style="color: #333;">Reset Your Password</h2>
+        <p>We received a request to reset the password for your TheLyst account. Click the button below to choose a new password:</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${resetLink}" style="display: inline-block; background-color: #E8001C; color: white; padding: 14px 28px; border-radius: 6px; text-decoration: none; font-size: 16px; font-weight: 600;">
+            Reset Password
+          </a>
+        </div>
+        <p>This link will expire in 1 hour. If you didn't request a password reset, you can safely ignore this email — your password will not change.</p>
+        <p style="margin-top: 30px; font-size: 12px; color: #666;">
+          This is an automated email. Please do not reply to this message.
+        </p>
+      </div>
+    `,
+  };
+
+  return new Promise((resolve, reject) => {
+    transporter.sendMail(mailOptions, (error, info) => {
+      if (error) {
+        console.error('Reset email sending error:', error);
+        reject(error);
+      } else {
+        console.log('Reset email sent:', info.response);
+        resolve();
+      }
+    });
+  });
+};

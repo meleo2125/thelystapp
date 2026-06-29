@@ -1,12 +1,25 @@
 import type { Metadata } from "next";
+import { Inter, Montserrat } from "next/font/google";
 import "./globals.css";
 import Providers from "../components/Providers";
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  display: "swap",
+});
+
+const montserrat = Montserrat({
+  subsets: ["latin"],
+  variable: "--font-heading",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "TheLyst - Track Your Media",
   description: "Track and organize your favorite TV shows, movies, anime and more",
   icons: {
-    icon: '/lyst.png',
+    icon: '/favicon.ico',
   }
 };
 
@@ -16,12 +29,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-      </head>
+    <html lang="en" className={`${inter.variable} ${montserrat.variable}`}>
       <body className="antialiased min-h-screen">
         <Providers>
           {children}

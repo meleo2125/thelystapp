@@ -32,17 +32,18 @@ const LoginPage = () => {
       await login(data.email, data.password);
       toast.success('Login successful');
       router.push('/home');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Login error:', error);
+      const err = error as { code?: string; message?: string };
       
       const errorMessage = 
-        error.code === 'auth/invalid-credential'
+        err.code === 'auth/invalid-credential'
           ? 'Invalid email or password'
-          : error.code === 'auth/user-not-found'
+          : err.code === 'auth/user-not-found'
           ? 'User not found'
-          : error.code === 'auth/wrong-password'
+          : err.code === 'auth/wrong-password'
           ? 'Invalid password'
-          : 'Failed to login. Please try again.';
+          : err.message || 'Failed to login. Please try again.';
       
       toast.error(errorMessage);
     } finally {
@@ -55,9 +56,16 @@ const LoginPage = () => {
       setIsLoading(true);
       await googleSignIn();
       toast.success('Login successful');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Google sign-in error:', error);
-      toast.error('Failed to login with Google. Please try again.');
+      const err = error as { code?: string; message?: string };
+      
+      const errorMessage = 
+        err.code === 'auth/account-exists-with-different-credential'
+          ? 'An account already exists with this email using a different sign-in method. Please sign in using your email and password.'
+          : 'Failed to login with Google. Please try again.';
+          
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -69,7 +77,7 @@ const LoginPage = () => {
       subtitle={
         <>
           Don't have an account?{' '}
-          <Link href="/register" className="font-medium text-[#e11d48] hover:text-[#be123c] transition-colors">
+          <Link href="/register" className="font-medium text-primary hover:text-primary-dark transition-colors">
             Create one
           </Link>
         </>

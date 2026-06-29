@@ -67,9 +67,10 @@ const RegisterPage = () => {
       
       toast.success('Verification code sent to your email');
       router.push('/verify-otp');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Registration error:', error);
-      toast.error(error.message || 'Failed to register. Please try again.');
+      const err = error as { message?: string };
+      toast.error(err.message || 'Failed to register. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -80,9 +81,16 @@ const RegisterPage = () => {
       setIsLoading(true);
       await googleSignIn();
       toast.success('Registration successful');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Google sign-in error:', error);
-      toast.error(error.message || 'Failed to register with Google. Please try again.');
+      const err = error as { code?: string; message?: string };
+      
+      const errorMessage = 
+        err.code === 'auth/account-exists-with-different-credential'
+          ? 'An account already exists with this email using a different sign-in method. Please sign in using your email and password.'
+          : err.message || 'Failed to register with Google. Please try again.';
+          
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -94,7 +102,7 @@ const RegisterPage = () => {
       subtitle={
         <>
           Already have an account?{' '}
-          <Link href="/login" className="font-medium text-[#e11d48] hover:text-[#be123c] transition-colors">
+          <Link href="/login" className="font-medium text-primary hover:text-primary-dark transition-colors">
             Sign in instead
           </Link>
         </>

@@ -21,9 +21,9 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
     ...props 
   }, ref) => {
     const inputClasses = `
-      px-4 py-2 text-sm rounded-md border bg-transparent transition-all duration-200
-      border-gray-300 focus:border-[#e11d48] focus:ring-1 focus:ring-[#e11d48]/30 
-      dark:border-gray-700 dark:focus:border-[#fb7185] dark:focus:ring-[#fb7185]/30
+      px-4 py-2 text-sm rounded-md border transition-all duration-200
+      bg-secondary/30 border-border text-foreground focus:border-primary focus:ring-1 focus:ring-primary/30 
+      placeholder:text-muted
       ${error ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}
       ${leftIcon ? 'pl-10' : ''}
       ${rightIcon ? 'pr-10' : ''}

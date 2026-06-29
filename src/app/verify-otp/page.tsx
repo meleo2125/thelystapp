@@ -8,9 +8,7 @@ import { useAuth } from '../../../backend/AuthContext';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import AuthLayout from '@/components/AuthLayout';
-import { auth } from '../../../backend/firebase';
-import { fetchSignInMethodsForEmail } from 'firebase/auth';
-import { verifyOTP } from '../../../backend/mailer';
+
 import { decrypt } from '../../../utils/crypto';
 
 interface VerifyOTPFormData {
@@ -81,31 +79,24 @@ const VerifyOTPPage = () => {
       setIsLoading(true);
       
       // Verify OTP with registrationId for added security
-      const response = await fetch(`/api/verify-otp?email=${registrationData.email}&otp=${data.otp}&registrationId=${registrationData.registrationId}`);
+      // Sent as POST body to keep the code out of server logs and browser history
+      const response = await fetch('/api/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: registrationData.email,
+          otp: data.otp,
+          registrationId: registrationData.registrationId,
+        }),
+      });
       const result = await response.json();
       
       if (!response.ok || !result.valid) {
         throw new Error(result.error || 'Invalid or expired verification code');
       }
 
-      // Decrypt the password
+      // Decrypt the password and proceed to registration
       const password = decrypt(registrationData.encryptedPassword);
-
-      // Check if email already exists in Firebase Auth
-      try {
-        const signInMethods = await fetchSignInMethodsForEmail(auth, registrationData.email);
-        
-        if (signInMethods && signInMethods.length > 0) {
-          // Email already exists, try to login instead
-          toast.success('Email verified! Logging you in.');
-          await login(registrationData.email, password);
-          sessionStorage.removeItem('registrationData');
-          return; // Router push will be handled by login function
-        }
-      } catch (error) {
-        console.log('Error checking existing email:', error);
-        // Continue with registration if the check fails
-      }
       
       // Register user with Firebase
       await registerUser(
@@ -119,24 +110,27 @@ const VerifyOTPPage = () => {
       
       toast.success('Account created successfully');
       // Router push will be handled by registerUser function
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Verification error:', error);
+      const err = error as { code?: string; message?: string };
       
       // Handle specific error cases
-      if (error.code === 'auth/email-already-in-use') {
+      if (err.code === 'auth/email-already-in-use') {
+        // Email exists — try logging in (succeeds if they have an email/password account)
         try {
-          // Email exists, try to login instead
-          toast.success('Email already registered. Logging you in.');
           const password = decrypt(registrationData.encryptedPassword);
           await login(registrationData.email, password);
           sessionStorage.removeItem('registrationData');
-          return; // Router push will be handled by login function
-        } catch (loginError: any) {
-          toast.error('Could not login with provided credentials. Please try again.');
+          toast.success('Email already registered. Logged in successfully.');
+          return; // router.push handled by login()
+        } catch {
+          // Login also failed — likely a Google-only account. Send them to sign in.
+          sessionStorage.removeItem('registrationData');
+          toast.error('This email is already registered. Please sign in.');
           router.push('/login');
         }
       } else {
-        toast.error(error.message || 'Failed to verify OTP. Please try again.');
+        toast.error(err.message || 'Failed to verify OTP. Please try again.');
       }
     } finally {
       setIsLoading(false);
@@ -175,9 +169,10 @@ const VerifyOTPPage = () => {
       setTimeLeft(300);
       
       toast.success('Verification code resent to your email');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Resend OTP error:', error);
-      toast.error(error.message || 'Failed to resend verification code. Please try again.');
+      const err = error as { message?: string };
+      toast.error(err.message || 'Failed to resend verification code. Please try again.');
     } finally {
       setIsLoading(false);
     }

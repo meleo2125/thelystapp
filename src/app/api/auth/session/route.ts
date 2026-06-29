@@ -1,16 +1,22 @@
-import { auth } from '../../../../../backend/firebase';
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import { z } from 'zod';
 
-export async function POST(request: NextRequest) {
+const postSchema = z.object({
+  token: z.string().min(1, 'Token is required'),
+  rememberMe: z.boolean().optional(),
+});
+
+export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
-    // Extract token from request body
-    const { token, rememberMe } = await request.json();
+    const body = await request.json();
+    const result = postSchema.safeParse(body);
     
-    if (!token) {
-      return NextResponse.json({ success: false, error: 'No token provided' }, { status: 400 });
+    if (!result.success) {
+      return NextResponse.json({ success: false, error: result.error.issues[0].message }, { status: 400 });
     }
     
+    const { token, rememberMe } = result.data;
     const expiresIn = rememberMe ? 60 * 60 * 24 * 14 : 60 * 60 * 24; // 14 days or 1 day in seconds
     
     // Set the session cookie
@@ -32,7 +38,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function DELETE() {
+export async function DELETE(): Promise<NextResponse> {
   try {
     // Delete the session cookie
     const cookieStore = await cookies();
@@ -43,4 +49,4 @@ export async function DELETE() {
     console.error('Error deleting session:', error);
     return NextResponse.json({ success: false, error: 'Server error' }, { status: 500 });
   }
-} 
+}

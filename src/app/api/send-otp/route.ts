@@ -1,17 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateOTP, storeOTP, sendOTPEmail } from '../../../../backend/mailer';
+import { z } from 'zod';
 
-export async function POST(request: NextRequest) {
+const postSchema = z.object({
+  email: z.string().email('Invalid email address'),
+  registrationId: z.string().min(1, 'Registration ID is required'),
+});
+
+export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const body = await request.json();
-    const { email, registrationId } = body;
+    const result = postSchema.safeParse(body);
     
-    if (!email) {
+    if (!result.success) {
       return NextResponse.json(
-        { error: 'Email is required' },
+        { error: result.error.issues[0].message },
         { status: 400 }
       );
     }
+    
+    const { email, registrationId } = result.data;
     
     // Generate OTP
     const otp = generateOTP();
@@ -33,4 +41,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-} 
+}

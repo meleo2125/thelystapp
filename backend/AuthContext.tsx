@@ -130,27 +130,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser(null);
         }
       } finally {
+        // onAuthStateChanged is the sole authority on loading state.
+        // It always fires on mount with the current auth state.
         setLoading(false);
       }
     });
 
-    // On initial load, verify the session server-side
-    const checkSession = async () => {
-      try {
-        const isAuthenticated = await verifySession();
-        if (!isAuthenticated && !user) {
-          // If the server says we're not authenticated and we don't have a user,
-          // make sure our state reflects that
-          setUser(null);
-        }
-      } catch (error) {
-        console.error('Initial session check error:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    checkSession();
     return () => unsubscribe();
   }, []);
 
@@ -163,7 +148,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Add specific error handling based on error codes
     switch(authError.code) {
       case 'auth/invalid-credential':
-        throw new Error('Invalid email or password');
+        throw new Error('Invalid email or password. If you signed up with Google, try the Google sign-in button.');
       case 'auth/user-not-found':
         throw new Error('User not found');
       case 'auth/wrong-password':
@@ -182,9 +167,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (email: string, password: string) => {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      // No need to setUser, onAuthStateChanged listener will handle it
       await setSessionCookie(userCredential.user);
-      router.push('/home');
+      
+      const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
+      const userData = userDoc.data();
+      if (userData && !userData.onboardingCompleted) {
+        router.push('/onboarding');
+      } else {
+        router.push('/home');
+      }
     } catch (error) {
       handleAuthError(error);
     }
@@ -194,18 +185,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       
-      // Add user profile to Firestore
       await setDoc(doc(db, 'users', userCredential.user.uid), {
         uid: userCredential.user.uid,
         email,
         name,
         createdAt: new Date().toISOString(),
-        emailVerified: true, // We've verified via OTP
+        emailVerified: true,
       });
       
-      // No need to setUser, onAuthStateChanged listener will handle it
       await setSessionCookie(userCredential.user);
-      router.push('/home');
+
+      fetch('/api/auth/verify-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ uid: userCredential.user.uid }),
+      }).catch(err => console.warn('Could not sync emailVerified flag:', err));
+
+      router.push('/onboarding');
     } catch (error) {
       handleAuthError(error);
     }
@@ -216,24 +213,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
       
-      // Check if user exists in Firestore
       const userDoc = await getDoc(doc(db, 'users', user.uid));
+      let isNew = false;
       
       if (!userDoc.exists()) {
-        // Create new user document if not exists
+        isNew = true;
         await setDoc(doc(db, 'users', user.uid), {
           uid: user.uid,
           email: user.email,
           name: user.displayName,
           photoURL: user.photoURL,
           createdAt: new Date().toISOString(),
-          emailVerified: user.emailVerified || true, // Google OAuth verified emails are trusted
+          emailVerified: true,
         });
       }
       
-      // No need to setUser, onAuthStateChanged listener will handle it
       await setSessionCookie(user);
-      router.push('/home');
+
+      if (isNew) {
+        router.push('/onboarding');
+      } else {
+        const userData = userDoc.data();
+        if (userData && !userData.onboardingCompleted) {
+          router.push('/onboarding');
+        } else {
+          router.push('/home');
+        }
+      }
     } catch (error) {
       handleAuthError(error);
     }

@@ -12,14 +12,28 @@ function initFirebaseAdmin() {
 
     // Check required env vars
     if (!process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID) {
-      throw new Error('Missing Firebase project ID in environment variables');
+      throw new Error('Missing NEXT_PUBLIC_FIREBASE_PROJECT_ID in environment variables');
+    }
+    if (!process.env.FIREBASE_ADMIN_CLIENT_EMAIL) {
+      throw new Error('Missing FIREBASE_ADMIN_CLIENT_EMAIL in environment variables');
     }
 
-    // Generate fallback client email if not provided
-    const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL || 
-      `firebase-adminsdk-${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID?.split('-')[1]?.substring(0, 5) || 'default'}@${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}.iam.gserviceaccount.com`;
+    const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL;
 
-    const privateKey = (process.env.FIREBASE_ADMIN_PRIVATE_KEY || '').replace(/\\n/g, '\n');
+    let privateKey = (process.env.FIREBASE_ADMIN_PRIVATE_KEY || '').replace(/\\n/g, '\n');
+
+    // Strip surrounding quotes if they were pasted into .env
+    if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
+      privateKey = privateKey.substring(1, privateKey.length - 1);
+    }
+    if (privateKey.startsWith("'") && privateKey.endsWith("'")) {
+      privateKey = privateKey.substring(1, privateKey.length - 1);
+    }
+
+    // Automatically wrap in standard PEM headers if they are missing
+    if (privateKey && !privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
+      privateKey = `-----BEGIN PRIVATE KEY-----\n${privateKey}\n-----END PRIVATE KEY-----\n`;
+    }
 
     if (!privateKey || privateKey === '') {
       throw new Error('Missing Firebase Admin private key in environment variables');

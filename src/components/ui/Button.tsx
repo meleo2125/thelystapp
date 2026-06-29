@@ -24,10 +24,10 @@ const Button: React.FC<ButtonProps> = ({
   const baseStyles = 'inline-flex items-center justify-center rounded-md font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 transform hover:-translate-y-0.5 active:translate-y-0';
   
   const variantStyles = {
-    primary: 'bg-[#e11d48] text-white hover:bg-[#be123c] active:bg-[#9f1239] focus-visible:ring-[#e11d48]/50',
-    secondary: 'bg-[#171717] text-white hover:bg-[#404040] active:bg-[#525252] focus-visible:ring-[#171717]/50',
-    outline: 'border-2 border-[#e11d48] bg-transparent text-[#e11d48] hover:bg-[#e11d48]/10 active:bg-[#e11d48]/20',
-    ghost: 'bg-transparent text-[#171717] hover:bg-gray-100 active:bg-gray-200 dark:text-white dark:hover:bg-white/10',
+    primary: 'bg-primary text-white hover:bg-primary-dark active:bg-primary-dark/90 focus-visible:ring-primary/50',
+    secondary: 'bg-secondary text-white hover:bg-secondary-light active:bg-secondary-light/90 focus-visible:ring-secondary/50 border border-border',
+    outline: 'border border-primary bg-transparent text-primary hover:bg-primary/10 active:bg-primary/20',
+    ghost: 'bg-transparent text-foreground hover:bg-white/5 active:bg-white/10',
   };
   
   const sizeStyles = {
