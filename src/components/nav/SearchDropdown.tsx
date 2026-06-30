@@ -106,7 +106,9 @@ export default function SearchDropdown({ query, isOpen, onClose }: SearchDropdow
       ) : (
         /* Results rows */
         <div className="p-1.5 flex flex-col">
-          {results.slice(0, 5).map((item) => (
+          {Array.from(
+            new Map(results.map((item) => [`${item.type}-${item.sourceId}`, item])).values()
+          ).slice(0, 5).map((item) => (
             <Link
               key={`${item.type}-${item.sourceId}`}
               href={`/${item.type}/${item.sourceId}`}

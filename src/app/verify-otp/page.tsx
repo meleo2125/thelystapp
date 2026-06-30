@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../../backend/AuthContext';
@@ -22,12 +22,14 @@ interface RegistrationData {
   registrationId: string;
 }
 
-const VerifyOTPPage = () => {
+const VerifyOTPForm = () => {
   const { register: registerUser, login } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [registrationData, setRegistrationData] = useState<RegistrationData | null>(null);
   const [timeLeft, setTimeLeft] = useState(300); // 5 minutes in seconds
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams.get('callbackUrl') || '/home';
   
   const {
     register,
@@ -102,7 +104,8 @@ const VerifyOTPPage = () => {
       await registerUser(
         registrationData.email,
         password,
-        registrationData.name
+        registrationData.name,
+        `/onboarding?callbackUrl=${encodeURIComponent(callbackUrl)}`
       );
       
       // Clear session storage
@@ -119,7 +122,7 @@ const VerifyOTPPage = () => {
         // Email exists — try logging in (succeeds if they have an email/password account)
         try {
           const password = decrypt(registrationData.encryptedPassword);
-          await login(registrationData.email, password);
+          await login(registrationData.email, password, callbackUrl);
           sessionStorage.removeItem('registrationData');
           toast.success('Email already registered. Logged in successfully.');
           return; // router.push handled by login()
@@ -127,7 +130,7 @@ const VerifyOTPPage = () => {
           // Login also failed — likely a Google-only account. Send them to sign in.
           sessionStorage.removeItem('registrationData');
           toast.error('This email is already registered. Please sign in.');
-          router.push('/login');
+          router.push(`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`);
         }
       } else {
         toast.error(err.message || 'Failed to verify OTP. Please try again.');
@@ -250,6 +253,18 @@ const VerifyOTPPage = () => {
         </div>
       </form>
     </AuthLayout>
+  );
+};
+
+const VerifyOTPPage = () => {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
+        <span className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
+      <VerifyOTPForm />
+    </Suspense>
   );
 };
 

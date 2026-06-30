@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../../../backend/AuthContext';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
@@ -13,9 +13,11 @@ const POPULAR_GENRES: string[] = [
   'Isekai', 'Shounen', 'Seinen', 'Shoujo', 'Slice of Life', 'Mecha'
 ];
 
-export default function OnboardingPage() {
+function OnboardingContent() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams.get('callbackUrl') || '/home';
 
   const [username, setUsername] = useState('');
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
@@ -35,7 +37,7 @@ export default function OnboardingPage() {
         if (res.ok) {
           const json = await res.json();
           if (json.profile && json.profile.onboardingCompleted) {
-            router.replace('/home');
+            router.replace(callbackUrl);
           }
         }
       } catch (err) {
@@ -99,7 +101,7 @@ export default function OnboardingPage() {
       }
 
       toast.success('Onboarding complete! Welcome to TheLyst.');
-      router.replace('/home');
+      router.replace(callbackUrl);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'An error occurred during onboarding');
     } finally {
@@ -182,5 +184,17 @@ export default function OnboardingPage() {
         </form>
       </div>
     </div>
+  );
+}
+
+export default function OnboardingPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
+        <span className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
+      <OnboardingContent />
+    </Suspense>
   );
 }

@@ -1,17 +1,17 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { 
-  User, 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  signOut, 
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import {
+  User,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
   onAuthStateChanged,
   signInWithPopup,
   AuthError,
   EmailAuthProvider,
   linkWithCredential,
-  reauthenticateWithPopup
+  reauthenticateWithPopup,
 } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { auth, db, googleProvider } from './firebase';
@@ -20,10 +20,10 @@ import { useRouter } from 'next/navigation';
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, name: string) => Promise<void>;
+  login: (email: string, password: string, redirectTo?: string) => Promise<void>;
+  register: (email: string, password: string, name: string, redirectTo?: string) => Promise<void>;
   logout: () => Promise<void>;
-  googleSignIn: () => Promise<void>;
+  googleSignIn: (redirectTo?: string) => Promise<void>;
   verifySession: () => Promise<boolean>;
   linkEmailPassword: (password: string) => Promise<void>;
   hasPassword: () => boolean;
@@ -44,111 +44,78 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  // Function to set the session cookie
-  const setSessionCookie = async (user: User) => {
-    try {
-      // Get the authentication token
-      const token = await user.getIdToken();
-      
-      // Save the token in a cookie via API
-      const response = await fetch('/api/auth/session', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({ token }),
-      });
-      
-      // Check if the response has a valid content type
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        throw new Error(`Invalid response content type: ${contentType}`);
-      }
-      
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to set session cookie');
-      }
-      
-      return data;
-    } catch (error) {
-      console.error('Error setting session cookie:', error);
-      throw error; // Re-throw to handle in calling function
+  /**
+   * Send the current Firebase ID token to the server so it can be set as
+   * an HTTP-only session cookie. Robust against stripped Content-Type and
+   * non-JSON responses.
+   */
+  const setSessionCookie = useCallback(async (u: User) => {
+    const token = await u.getIdToken();
+    const response = await fetch('/api/auth/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ token }),
+    });
+    const ct = response.headers.get('content-type') || '';
+    if (!ct.includes('application/json')) {
+      throw new Error(`Invalid response content type: ${ct || 'unknown'}`);
     }
-  };
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to set session cookie');
+    }
+    return data;
+  }, []);
 
-  // Verify the session token on the server
-  const verifySession = async (): Promise<boolean> => {
+  const verifySession = useCallback(async (): Promise<boolean> => {
     try {
       const response = await fetch('/api/auth/verify', {
-        // Include credentials to send cookies
         credentials: 'include',
-        // Add cache control to prevent caching of this critical request
         cache: 'no-store',
-        headers: {
-          'Accept': 'application/json',
-        },
+        headers: { Accept: 'application/json' },
       });
-      
-      // Check if the response is valid JSON
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        console.error('Invalid response content type:', contentType);
-        return false;
-      }
-      
+      const ct = response.headers.get('content-type') || '';
+      if (!ct.includes('application/json')) return false;
       const data = await response.json();
-      return data.authenticated;
+      return !!data.authenticated;
     } catch (error) {
       console.error('Session verification error:', error);
       return false;
     }
-  };
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (authUser) => {
       try {
         if (authUser) {
-          // Update user state first with the latest data
           setUser(authUser);
-          // Then set the session cookie
           await setSessionCookie(authUser);
         } else {
-          // Clear the session cookie when signed out
-          await fetch('/api/auth/session', { method: 'DELETE' });
+          await fetch('/api/auth/session', {
+            method: 'DELETE',
+            credentials: 'include',
+          });
           setUser(null);
         }
       } catch (error) {
         console.error('Auth state change error:', error);
-        // Even if setting the cookie fails, we should update the user state
-        if (authUser) {
-          setUser(authUser);
-        } else {
-          setUser(null);
-        }
+        setUser(authUser ?? null);
       } finally {
-        // onAuthStateChanged is the sole authority on loading state.
-        // It always fires on mount with the current auth state.
         setLoading(false);
       }
     });
-
     return () => unsubscribe();
-  }, []);
+  }, [setSessionCookie]);
 
-  const handleAuthError = (error: unknown) => {
+  const handleAuthError = (error: unknown): never => {
     console.error('Authentication error:', error);
-    
-    // Cast to AuthError if it's from Firebase Auth
     const authError = error as AuthError;
-    
-    // Add specific error handling based on error codes
-    switch(authError.code) {
+    switch (authError.code) {
       case 'auth/invalid-credential':
-        throw new Error('Invalid email or password. If you signed up with Google, try the Google sign-in button.');
+        throw new Error(
+          'Invalid email or password. If you signed up with Google, try the Google sign-in button.'
+        );
       case 'auth/user-not-found':
         throw new Error('User not found');
       case 'auth/wrong-password':
@@ -159,32 +126,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error('Password is too weak');
       case 'auth/invalid-email':
         throw new Error('Invalid email format');
+      case 'auth/network-request-failed':
+        throw new Error('Network error. Please check your connection and try again.');
+      case 'auth/too-many-requests':
+        throw new Error('Too many attempts. Please wait a moment and try again.');
+      case 'auth/popup-closed-by-user':
+      case 'auth/cancelled-popup-request':
+        throw new Error('Sign-in was cancelled.');
       default:
-        throw error; // Re-throw the original error if not handled
+        throw error instanceof Error ? error : new Error('Authentication failed');
     }
   };
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string, redirectTo = '/home') => {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       await setSessionCookie(userCredential.user);
-      
       const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
       const userData = userDoc.data();
       if (userData && !userData.onboardingCompleted) {
-        router.push('/onboarding');
+        // If onboarding is not complete, redirect to onboarding while passing the final destination
+        const dest = redirectTo !== '/home' ? `/onboarding?callbackUrl=${encodeURIComponent(redirectTo)}` : '/onboarding';
+        router.push(dest);
       } else {
-        router.push('/home');
+        router.push(redirectTo);
       }
     } catch (error) {
       handleAuthError(error);
     }
   };
 
-  const register = async (email: string, password: string, name: string) => {
+  const register = async (email: string, password: string, name: string, redirectTo = '/onboarding') => {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      
       await setDoc(doc(db, 'users', userCredential.user.uid), {
         uid: userCredential.user.uid,
         email,
@@ -192,52 +166,53 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         createdAt: new Date().toISOString(),
         emailVerified: true,
       });
-      
       await setSessionCookie(userCredential.user);
 
+      // Fire-and-forget sync of emailVerified to Admin SDK.
       fetch('/api/auth/verify-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ uid: userCredential.user.uid }),
-      }).catch(err => console.warn('Could not sync emailVerified flag:', err));
+      }).catch((err) => console.warn('Could not sync emailVerified flag:', err));
 
-      router.push('/onboarding');
+      router.push(redirectTo);
     } catch (error) {
       handleAuthError(error);
     }
   };
 
-  const googleSignIn = async () => {
+  const googleSignIn = async (redirectTo = '/home') => {
     try {
       const result = await signInWithPopup(auth, googleProvider);
-      const user = result.user;
-      
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      const u = result.user;
+
+      const userDoc = await getDoc(doc(db, 'users', u.uid));
       let isNew = false;
-      
       if (!userDoc.exists()) {
         isNew = true;
-        await setDoc(doc(db, 'users', user.uid), {
-          uid: user.uid,
-          email: user.email,
-          name: user.displayName,
-          photoURL: user.photoURL,
+        await setDoc(doc(db, 'users', u.uid), {
+          uid: u.uid,
+          email: u.email,
+          name: u.displayName,
+          photoURL: u.photoURL,
           createdAt: new Date().toISOString(),
           emailVerified: true,
         });
       }
-      
-      await setSessionCookie(user);
+
+      await setSessionCookie(u);
 
       if (isNew) {
-        router.push('/onboarding');
+        const dest = redirectTo !== '/home' ? `/onboarding?callbackUrl=${encodeURIComponent(redirectTo)}` : '/onboarding';
+        router.push(dest);
       } else {
         const userData = userDoc.data();
         if (userData && !userData.onboardingCompleted) {
-          router.push('/onboarding');
+          const dest = redirectTo !== '/home' ? `/onboarding?callbackUrl=${encodeURIComponent(redirectTo)}` : '/onboarding';
+          router.push(dest);
         } else {
-          router.push('/home');
+          router.push(redirectTo);
         }
       }
     } catch (error) {
@@ -247,47 +222,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     try {
-      // First, clear the session cookie directly
-      await fetch('/api/auth/session', { 
-        method: 'DELETE',
-        credentials: 'include'
-      });
-      
-      // Set user to null immediately to trigger UI updates
+      // Clear the session cookie *before* signing out of Firebase so that
+      // middleware redirects immediately on the next navigation.
+      await fetch('/api/auth/session', { method: 'DELETE', credentials: 'include' });
       setUser(null);
-      
-      // Then sign out from Firebase
       await signOut(auth);
-      
-      // Navigate to login page after everything is cleared
       router.replace('/login');
     } catch (error) {
       handleAuthError(error);
     }
   };
 
-  // Add new linkEmailPassword method  
   const linkEmailPassword = async (password: string) => {
     try {
       if (!user) {
         throw new Error('User not logged in');
       }
-      
-      // Create email/password credential
-      const credential = EmailAuthProvider.credential(user.email!, password);
-      
+      if (!user.email) {
+        throw new Error('Cannot set a password without a primary email');
+      }
+      const credential = EmailAuthProvider.credential(user.email, password);
       try {
-        // Try to link the credential to the user
         await linkWithCredential(user, credential);
         return;
       } catch (error) {
-        // Handle requires-recent-login error
         const authError = error as AuthError;
         if (authError.code === 'auth/requires-recent-login') {
-          // Re-authenticate with Google first
           await reauthenticateWithPopup(user, googleProvider);
-          
-          // Try linking again after re-authentication
           await linkWithCredential(user, credential);
         } else {
           throw error;
@@ -297,18 +258,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       handleAuthError(error);
     }
   };
-  
-  // Check if user has password authentication method
-  const hasPassword = () => {
-    if (!user) return false;
-    
-    // Check if email/password provider exists in providerData
-    return user.providerData.some(
-      provider => provider.providerId === 'password'
-    );
-  };
 
-  const value = {
+  const hasPassword = useCallback(
+    () =>
+      !!user &&
+      user.providerData.some((provider) => provider.providerId === 'password'),
+    [user]
+  );
+
+  const value: AuthContextType = {
     user,
     loading,
     login,
@@ -321,4 +279,4 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}; 
+};

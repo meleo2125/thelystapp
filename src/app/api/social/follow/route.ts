@@ -93,13 +93,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             read: false,
             createdAt: new Date().toISOString(),
           });
-
-        await logActivity({
-          uid: currentUser.uid,
-          username: followerProfile.username || 'user',
-          type: 'follow',
-          detail: `followed @${targetProfile.username || 'user'}`
-        });
       }
     } else {
       const followerProfile = await getUserProfile(currentUser.uid);

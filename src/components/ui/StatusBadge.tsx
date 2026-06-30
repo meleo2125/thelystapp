@@ -27,6 +27,10 @@ const statusMap: Record<ListStatus, { label: string; classes: string }> = {
     label: 'Dropped',
     classes: 'text-rose-400 bg-rose-500/10 border-rose-500/20',
   },
+  none: {
+    label: 'Saved',
+    classes: 'text-muted bg-white/5 border-border',
+  },
 };
 
 const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className = '' }) => {

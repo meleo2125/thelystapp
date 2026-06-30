@@ -37,10 +37,23 @@ async function getTvDetail(idStr: string) {
     if (err instanceof TmdbError && err.status === 404) {
       return null;
     }
+    // Gracefully handle transient network errors (ECONNRESET, fetch failed)
+    // instead of crashing the entire page with an application boundary error.
+    const message = err instanceof Error ? err.message : String(err);
+    if (
+      message.includes('ECONNRESET') ||
+      message.includes('fetch failed') ||
+      message.includes('ENOTFOUND') ||
+      message.includes('ETIMEDOUT')
+    ) {
+      console.error('Error fetching TV details inside Server Component:', err);
+      return null;
+    }
     console.error('Error fetching TV details inside Server Component:', err);
-    throw err;
+    return null;
   }
 }
+
 
 export async function generateMetadata({ params }: TvPageProps): Promise<Metadata> {
   const { id } = await params;

@@ -58,7 +58,8 @@ async function getAnimeDetail(idStr: string) {
       return null;
     }
     console.error('Error fetching Anime details inside Server Component:', err);
-    throw err;
+    // Gracefully handle transient network errors instead of crashing
+    return null;
   }
 }
 

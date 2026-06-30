@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
@@ -18,10 +18,13 @@ interface RegisterFormData {
   confirmPassword: string;
 }
 
-const RegisterPage = () => {
+const RegisterForm = () => {
   const { googleSignIn } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  
+  const callbackUrl = searchParams.get('callbackUrl') || '/home';
   
   const {
     register,
@@ -66,7 +69,7 @@ const RegisterPage = () => {
       }));
       
       toast.success('Verification code sent to your email');
-      router.push('/verify-otp');
+      router.push(`/verify-otp?callbackUrl=${encodeURIComponent(callbackUrl)}`);
     } catch (error: unknown) {
       console.error('Registration error:', error);
       const err = error as { message?: string };
@@ -81,6 +84,7 @@ const RegisterPage = () => {
       setIsLoading(true);
       await googleSignIn();
       toast.success('Registration successful');
+      router.push(callbackUrl);
     } catch (error: unknown) {
       console.error('Google sign-in error:', error);
       const err = error as { code?: string; message?: string };
@@ -102,7 +106,7 @@ const RegisterPage = () => {
       subtitle={
         <>
           Already have an account?{' '}
-          <Link href="/login" className="font-medium text-primary hover:text-primary-dark transition-colors">
+          <Link href={`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`} className="font-medium text-primary hover:text-primary-dark transition-colors">
             Sign in instead
           </Link>
         </>
@@ -202,10 +206,10 @@ const RegisterPage = () => {
         
         <div className="relative mt-6">
           <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-gray-300 dark:border-gray-700" />
+            <div className="w-full border-t border-border" />
           </div>
           <div className="relative flex justify-center text-sm">
-            <span className="px-2 bg-white text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+            <span className="px-3 bg-secondary text-muted font-medium">
               Or continue with
             </span>
           </div>
@@ -228,6 +232,18 @@ const RegisterPage = () => {
         </Button>
       </form>
     </AuthLayout>
+  );
+};
+
+const RegisterPage = () => {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
+        <span className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
+      <RegisterForm />
+    </Suspense>
   );
 };
 

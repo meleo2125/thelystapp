@@ -15,7 +15,7 @@ import EmptyState from '@/components/ui/EmptyState';
 import MediaCard from '@/components/media/MediaCard';
 import FollowButton from '@/components/social/FollowButton';
 import ActivityHeatmap from '@/components/social/ActivityHeatmap';
-import { ListEntry } from '@/types/list';
+import { ListEntry, Lyst } from '@/types/list';
 import { MediaSummary } from '@/types/media';
 
 interface PasswordFormData {
@@ -60,16 +60,16 @@ export default function ProfilePageClient({
   const { logout, linkEmailPassword, hasPassword } = useAuth();
 
   // Navigation tabs state
-  const [activeTab, setActiveTab] = useState<'lyst' | 'stats' | 'settings'>('lyst');
+  const [activeTab, setActiveTab] = useState<'lyst' | 'lysts' | 'stats' | 'settings'>('lyst');
 
   useEffect(() => {
     const tabParam = searchParams.get('tab');
-    if (tabParam === 'stats' || tabParam === 'settings' || tabParam === 'lyst') {
-      setActiveTab(tabParam);
+    if (tabParam === 'stats' || tabParam === 'settings' || tabParam === 'lyst' || tabParam === 'lysts') {
+      setActiveTab(tabParam as 'lyst' | 'lysts' | 'stats' | 'settings');
     }
   }, [searchParams]);
 
-  const handleTabChange = (tab: 'lyst' | 'stats' | 'settings') => {
+  const handleTabChange = (tab: 'lyst' | 'lysts' | 'stats' | 'settings') => {
     setActiveTab(tab);
     router.replace(`/u/${profile.username}?tab=${tab}`);
   };
@@ -78,6 +78,16 @@ export default function ProfilePageClient({
   const [watchList, setWatchList] = useState<ListEntry[]>([]);
   const [listLoading, setListLoading] = useState(true);
   const [isPrivateAccount, setIsPrivateAccount] = useState(false);
+  const [watchStatusFilter, setWatchStatusFilter] = useState<'all' | 'watching' | 'completed' | 'plan_to_watch' | 'on_hold' | 'dropped'>('all');
+
+  // Custom Lysts state (public lysts visible on profile)
+  const [publicLysts, setPublicLysts] = useState<Lyst[]>([]);
+  const [lystsLoading, setLystsLoading] = useState(true);
+
+  const filteredWatchList = useMemo(
+    () => watchStatusFilter === 'all' ? watchList : watchList.filter((i) => i.status === watchStatusFilter),
+    [watchList, watchStatusFilter]
+  );
 
   // Settings State Hooks
   const [claimedUsername, setClaimedUsername] = useState(profile.username);
@@ -106,7 +116,7 @@ export default function ProfilePageClient({
 
   const password = watch('password');
 
-  // Fetch watch list
+  // Fetch watchlyst (only items with a real watch status — not lyst-only items)
   useEffect(() => {
     const fetchWatchList = async () => {
       setListLoading(true);
@@ -114,10 +124,16 @@ export default function ProfilePageClient({
         const res = await fetch(`/api/list?username=${profile.username}`);
         if (res.ok) {
           const json = await res.json();
-          setWatchList(json.data || []);
+          // Only show items that have an actual watch status (not lyst-only / no-status entries)
+          const all: ListEntry[] = json.data || [];
+          setWatchList(all.filter((item) => item.status !== 'none'));
           setIsPrivateAccount(false);
         } else if (res.status === 403) {
           setIsPrivateAccount(true);
+          const tabParam = searchParams.get('tab');
+          if (!tabParam || tabParam === 'lyst' || tabParam === 'stats') {
+            setActiveTab('lysts');
+          }
         }
       } catch (err) {
         console.error('Error loading watchlist:', err);
@@ -126,10 +142,37 @@ export default function ProfilePageClient({
       }
     };
     fetchWatchList();
+  }, [profile.username, searchParams]);
+
+  // Fetch public custom lysts for this profile
+  useEffect(() => {
+    const fetchLysts = async () => {
+      setLystsLoading(true);
+      try {
+        const res = await fetch(`/api/lysts?username=${profile.username}`);
+        if (res.ok) {
+          const json = await res.json();
+          // Only show public lysts on the profile
+          const all: Lyst[] = json.data || [];
+          setPublicLysts(all.filter((l) => l.isPublic));
+        }
+      } catch (err) {
+        console.error('Error loading lysts:', err);
+      } finally {
+        setLystsLoading(false);
+      }
+    };
+    fetchLysts();
   }, [profile.username]);
 
-  // Compute Stats
+  // Compute Stats — only count completed/watching items from the watchlyst.
+  // Items added purely via custom Lysts (status === 'none') are excluded.
   const stats = useMemo(() => {
+    // Only items that have been actively watched (completed or watching) affect stats
+    const activeItems = watchList.filter(
+      (item) => item.status === 'completed' || item.status === 'watching'
+    );
+
     let moviesCount = 0;
     let tvCount = 0;
     let animeCount = 0;
@@ -143,18 +186,22 @@ export default function ProfilePageClient({
     let totalScore = 0;
     const scoreMap = Array(10).fill(0);
 
+    // Status breakdown counts from the full watchlyst (all non-none statuses)
     watchList.forEach((item) => {
-      if (item.type === 'movie') moviesCount++;
-      else if (item.type === 'tv') tvCount++;
-      else if (item.type === 'anime') animeCount++;
-
-      if (item.type !== 'movie') totalEpisodes += item.progress;
-
       if (item.status === 'completed') completedCount++;
       else if (item.status === 'watching') watchingCount++;
       else if (item.status === 'plan_to_watch') planToWatchCount++;
       else if (item.status === 'on_hold') onHoldCount++;
       else if (item.status === 'dropped') droppedCount++;
+    });
+
+    // Format counts, episode progress and scores only from completed/watching items
+    activeItems.forEach((item) => {
+      if (item.type === 'movie') moviesCount++;
+      else if (item.type === 'tv') tvCount++;
+      else if (item.type === 'anime') animeCount++;
+
+      if (item.type !== 'movie') totalEpisodes += item.progress;
 
       if (item.score !== null && item.score >= 1 && item.score <= 10) {
         scoredCount++;
@@ -163,7 +210,7 @@ export default function ProfilePageClient({
       }
     });
 
-    const estimatedMinutes = moviesCount * 120 + watchList.reduce((acc, item) => {
+    const estimatedMinutes = moviesCount * 120 + activeItems.reduce((acc, item) => {
       if (item.type === 'tv') return acc + item.progress * 45;
       if (item.type === 'anime') return acc + item.progress * 24;
       return acc;
@@ -176,6 +223,8 @@ export default function ProfilePageClient({
       .filter((item) => item.status === 'completed')
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
       .slice(0, 3);
+
+    const totalActiveCount = activeItems.length;
 
     return {
       moviesCount,
@@ -192,6 +241,7 @@ export default function ProfilePageClient({
       scoreMap,
       maxScoreCount,
       recentlyCompleted,
+      totalActiveCount,
     };
   }, [watchList]);
 
@@ -350,41 +400,36 @@ export default function ProfilePageClient({
         </div>
       </div>
 
-      {/* Private Account Lock Overlay */}
-      {isPrivateAccount && !isOwner ? (
-        <div className="bg-secondary/40 border border-border rounded-xl p-12 text-center max-w-lg mx-auto flex flex-col items-center gap-4 shadow-xl fade-in mt-6">
-          <div className="w-16 h-16 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-8 h-8">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
-            </svg>
-          </div>
-          <div className="space-y-1">
-            <h2 className="text-lg font-black text-foreground">This Account is Private</h2>
-            <p className="text-xs text-muted leading-relaxed max-w-sm">
-              Follow @{profile.username} to see their watch statistics, lists, and daily completions.
-            </p>
-          </div>
-        </div>
-      ) : (
-        <>
-          {/* Tabs Switcher Navigation */}
-          <div className="flex border-b border-border/60 pb-px gap-6">
-            <button
-              onClick={() => handleTabChange('lyst')}
-              className={`pb-2 text-sm font-bold border-b-2 cursor-pointer transition-colors ${
-                activeTab === 'lyst' ? 'border-primary text-primary font-bold' : 'border-transparent text-muted hover:text-foreground'
-              }`}
-            >
-              Watch Lyst
-            </button>
-            <button
-              onClick={() => handleTabChange('stats')}
-              className={`pb-2 text-sm font-bold border-b-2 cursor-pointer transition-colors ${
-                activeTab === 'stats' ? 'border-primary text-primary font-bold' : 'border-transparent text-muted hover:text-foreground'
-              }`}
-            >
-              Watch Stats
-            </button>
+      {/* Tabs Switcher Navigation */}
+      <div className="flex border-b border-border/60 pb-px gap-6">
+        <button
+          onClick={() => handleTabChange('lyst')}
+          className={`pb-2 text-sm font-bold border-b-2 cursor-pointer transition-colors flex items-center gap-1 ${
+            activeTab === 'lyst' ? 'border-primary text-primary font-bold' : 'border-transparent text-muted hover:text-foreground'
+          }`}
+        >
+          Watch Lyst {isPrivateAccount && !isOwner && <span className="text-[10px]">🔒</span>}
+        </button>
+        <button
+          onClick={() => handleTabChange('lysts')}
+          className={`pb-2 text-sm font-bold border-b-2 cursor-pointer transition-colors ${
+            activeTab === 'lysts' ? 'border-primary text-primary font-bold' : 'border-transparent text-muted hover:text-foreground'
+          }`}
+        >
+          Lysts{publicLysts.length > 0 && (
+            <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-secondary text-muted font-semibold">
+              {publicLysts.length}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => handleTabChange('stats')}
+          className={`pb-2 text-sm font-bold border-b-2 cursor-pointer transition-colors flex items-center gap-1 ${
+            activeTab === 'stats' ? 'border-primary text-primary font-bold' : 'border-transparent text-muted hover:text-foreground'
+          }`}
+        >
+          Watch Stats {isPrivateAccount && !isOwner && <span className="text-[10px]">🔒</span>}
+        </button>
             {isOwner && (
               <button
                 onClick={() => handleTabChange('settings')}
@@ -399,48 +444,165 @@ export default function ProfilePageClient({
 
           {/* TAB 1: Watchlyst Grid */}
           {activeTab === 'lyst' && (
+            isPrivateAccount && !isOwner ? (
+              <div className="bg-secondary/40 border border-border rounded-xl p-12 text-center max-w-lg mx-auto flex flex-col items-center gap-4 shadow-xl fade-in mt-6">
+                <div className="w-16 h-16 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-8 h-8">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                  </svg>
+                </div>
+                <div className="space-y-1">
+                  <h2 className="text-lg font-black text-foreground">This Account is Private</h2>
+                  <p className="text-xs text-muted leading-relaxed max-w-sm">
+                    Follow @{profile.username} to see their watch lists and track progress.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-5 fade-in">
+                {/* Status filter tabs */}
+                {!listLoading && watchList.length > 0 && (
+                  <div className="flex gap-1 overflow-x-auto pb-1 no-scrollbar">
+                    {([
+                      { value: 'all', label: 'All' },
+                      { value: 'watching', label: 'Watching' },
+                      { value: 'completed', label: 'Completed' },
+                      { value: 'plan_to_watch', label: 'Plan to Watch' },
+                      { value: 'on_hold', label: 'On Hold' },
+                      { value: 'dropped', label: 'Dropped' },
+                    ] as const).map((tab) => {
+                      const count = tab.value === 'all'
+                        ? watchList.length
+                        : watchList.filter((i) => i.status === tab.value).length;
+                      const isActive = watchStatusFilter === tab.value;
+                      return (
+                        <button
+                          key={tab.value}
+                          onClick={() => setWatchStatusFilter(tab.value)}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                            isActive
+                              ? 'bg-primary text-white'
+                              : 'bg-secondary border border-border text-muted hover:text-foreground hover:border-primary/30'
+                          }`}
+                        >
+                          {tab.label}
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${
+                            isActive ? 'bg-white/20 text-white' : 'bg-background text-muted'
+                          }`}>
+                            {count}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {listLoading ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-6">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <div key={i} className="h-48 bg-secondary/50 rounded-xl animate-pulse" />
+                    ))}
+                  </div>
+                ) : filteredWatchList.length === 0 ? (
+                  <EmptyState
+                    title={watchList.length === 0 ? 'Empty Watchlyst' : 'No matches'}
+                    description={
+                      watchList.length === 0
+                        ? 'No media has been added to this list yet.'
+                        : 'No items match this status filter.'
+                    }
+                    {...(watchStatusFilter !== 'all' && watchList.length > 0 ? {
+                      actionLabel: 'Show All',
+                      onAction: () => setWatchStatusFilter('all'),
+                    } : {})}
+                  />
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-6">
+                    {filteredWatchList.map((item) => {
+                      const mediaSummary: MediaSummary = {
+                        type: item.type,
+                        sourceId: item.sourceId,
+                        title: item.cache.title,
+                        posterPath: item.cache.posterPath,
+                        year: item.cache.year,
+                        aggregateScore: null,
+                      };
+                      return (
+                        <div key={item.id} className="relative group">
+                          <MediaCard media={mediaSummary} />
+                          {/* Status badge */}
+                          <div className="absolute top-2 right-2 scale-90 origin-top-right">
+                            <StatusBadge status={item.status} />
+                          </div>
+                          {/* rating display */}
+                          {item.score !== null && (
+                            <div className="absolute bottom-2 left-2 bg-black/85 border border-rating/30 text-rating text-[10px] font-black px-1.5 py-0.5 rounded shadow-lg">
+                              ★ {item.score}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )
+          )}
+
+          {/* TAB: Public Lysts */}
+          {activeTab === 'lysts' && (
             <div className="space-y-6 fade-in">
-              {listLoading ? (
-                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-6">
-                  {Array.from({ length: 6 }).map((_, i) => (
-                    <div key={i} className="h-48 bg-secondary/50 rounded-xl animate-pulse" />
+              {isOwner && (
+                <p className="text-xs text-muted">
+                  Only your <strong className="text-foreground">public</strong> Lysts are shown here. Manage all your Lysts from{' '}
+                  <a href="/list" className="text-primary hover:underline font-semibold">My Lysts</a>.
+                </p>
+              )}
+              {lystsLoading ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="h-28 bg-secondary/50 animate-pulse rounded-xl border border-border/40" />
                   ))}
                 </div>
-              ) : watchList.length === 0 ? (
+              ) : publicLysts.length === 0 ? (
                 <EmptyState
-                  title="Empty Watchlyst"
-                  description="No media has been added to this list yet."
+                  title="No Public Lysts"
+                  description={isOwner
+                    ? 'You have no public Lysts yet. Create one and make it public so others can see and vote on it!'
+                    : 'This user has no public Lysts yet.'}
                 />
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-6">
-                  {watchList.map((item) => {
-                    const mediaSummary: MediaSummary = {
-                      type: item.type,
-                      sourceId: item.sourceId,
-                      title: item.cache.title,
-                      posterPath: item.cache.posterPath,
-                      year: item.cache.year,
-                      aggregateScore: null,
-                    };
-                    
-                    return (
-                      <div key={item.id} className="relative group">
-                        <MediaCard media={mediaSummary} />
-                        
-                        {/* Status badge */}
-                        <div className="absolute top-2 right-2 scale-90 origin-top-right">
-                          <StatusBadge status={item.status} />
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {publicLysts.map((lyst) => (
+                    <a
+                      key={lyst.id}
+                      href={`/u/${profile.username}/lyst/${lyst.id}`}
+                      className="bg-secondary border border-border rounded-xl p-4 flex gap-4 items-start hover:border-primary/40 transition-colors group shadow-md"
+                    >
+                      {lyst.coverPosterPath && (
+                        <div className="relative w-14 h-20 rounded overflow-hidden border border-border bg-background flex-shrink-0">
+                          <MediaImage src={lyst.coverPosterPath} alt={lyst.name} fill sizes="56px" />
                         </div>
-
-                        {/* rating display */}
-                        {item.score !== null && (
-                          <div className="absolute bottom-2 left-2 bg-black/85 border border-rating/30 text-rating text-[10px] font-black px-1.5 py-0.5 rounded shadow-lg">
-                            ★ {item.score}
-                          </div>
+                      )}
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <span className="block font-bold text-sm text-foreground group-hover:text-primary transition-colors truncate">
+                          {lyst.name}
+                        </span>
+                        <p className="text-[10px] text-muted font-semibold">
+                          {lyst.itemCount} item{lyst.itemCount !== 1 ? 's' : ''}
+                        </p>
+                        {lyst.description && (
+                          <p className="text-xs text-foreground/70 line-clamp-2 leading-relaxed">
+                            {lyst.description}
+                          </p>
                         )}
+                        <div className="flex items-center gap-3 pt-1 text-[10px] font-bold text-muted">
+                          <span className="text-green-500">▲ {lyst.likesCount || 0}</span>
+                          <span className="text-rose-500">▼ {lyst.dislikesCount || 0}</span>
+                        </div>
                       </div>
-                    );
-                  })}
+                    </a>
+                  ))}
                 </div>
               )}
             </div>
@@ -448,161 +610,177 @@ export default function ProfilePageClient({
 
           {/* TAB 2: Watch Stats */}
           {activeTab === 'stats' && (
-            <div className="space-y-8 fade-in">
-              {/* Heatmap Section */}
-              <ActivityHeatmap list={watchList} />
-
-              {/* Stats Summary cards */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-secondary border border-border p-5 rounded-xl text-center">
-                  <span className="text-[10px] text-muted uppercase font-bold tracking-wider block mb-1">Time Watched</span>
-                  <span className="text-2xl font-black text-foreground">{stats.estimatedHours} <span className="text-xs text-muted">hrs</span></span>
+            isPrivateAccount && !isOwner ? (
+              <div className="bg-secondary/40 border border-border rounded-xl p-12 text-center max-w-lg mx-auto flex flex-col items-center gap-4 shadow-xl fade-in mt-6">
+                <div className="w-16 h-16 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-8 h-8">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                  </svg>
                 </div>
-                <div className="bg-secondary border border-border p-5 rounded-xl text-center">
-                  <span className="text-[10px] text-muted uppercase font-bold tracking-wider block mb-1">Episodes Logged</span>
-                  <span className="text-2xl font-black text-foreground">{stats.totalEpisodes}</span>
-                </div>
-                <div className="bg-secondary border border-border p-5 rounded-xl text-center">
-                  <span className="text-[10px] text-muted uppercase font-bold tracking-wider block mb-1">Mean Score</span>
-                  <span className="text-2xl font-black text-rating">{stats.avgScore}</span>
-                </div>
-                <div className="bg-secondary border border-border p-5 rounded-xl text-center">
-                  <span className="text-[10px] text-muted uppercase font-bold tracking-wider block mb-1">Completed</span>
-                  <span className="text-2xl font-black text-green-500">{stats.completedCount}</span>
+                <div className="space-y-1">
+                  <h2 className="text-lg font-black text-foreground">This Account is Private</h2>
+                  <p className="text-xs text-muted leading-relaxed max-w-sm">
+                    Follow @{profile.username} to see their watch statistics and track progress.
+                  </p>
                 </div>
               </div>
+            ) : (
+              <div className="space-y-8 fade-in">
+                {/* Heatmap Section */}
+                <ActivityHeatmap list={watchList} />
 
-              {watchList.length > 0 && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-                  {/* Left stats blocks */}
-                  <div className="flex flex-col gap-8">
-                    {/* Score Distribution */}
-                    <div className="bg-secondary border border-border p-6 rounded-xl">
-                      <h3 className="text-[10px] font-bold uppercase tracking-wider text-muted mb-6">Score Distribution</h3>
-                      <div className="flex items-end justify-between h-48 pt-4 px-2 bg-background/25 rounded border border-border/40">
-                        {stats.scoreMap.map((count, index) => {
-                          const scoreLabel = index + 1;
-                          const heightPercent = (count / stats.maxScoreCount) * 100;
-                          return (
-                            <div key={scoreLabel} className="flex flex-col items-center flex-1 group relative">
-                              <span className="absolute bottom-full mb-1 bg-black border border-border text-foreground font-semibold text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                                {count} item{count !== 1 ? 's' : ''}
-                              </span>
-                              <div
-                                className="w-4 sm:w-6 bg-primary rounded-t-sm transition-all duration-500 ease-out"
-                                style={{ height: `${heightPercent || 2}%`, opacity: heightPercent > 0 ? 1 : 0.15 }}
-                              />
-                              <span className="text-[10px] text-muted font-bold mt-2">{scoreLabel}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Formats ratio */}
-                    <div className="bg-secondary border border-border p-6 rounded-xl">
-                      <h3 className="text-[10px] font-bold uppercase tracking-wider text-muted mb-4">Formats Ratio</h3>
-                      <div className="flex flex-col gap-4">
-                        <div className="flex rounded-full overflow-hidden h-4 bg-background border border-border/50">
-                          {stats.moviesCount > 0 && (
-                            <div
-                              className="bg-primary"
-                              style={{ width: `${(stats.moviesCount / watchList.length) * 100}%` }}
-                              title={`Movies: ${stats.moviesCount}`}
-                            />
-                          )}
-                          {stats.tvCount > 0 && (
-                            <div
-                              className="bg-primary-light"
-                              style={{ width: `${(stats.tvCount / watchList.length) * 100}%` }}
-                              title={`TV Shows: ${stats.tvCount}`}
-                            />
-                          )}
-                          {stats.animeCount > 0 && (
-                            <div
-                              className="bg-rating"
-                              style={{ width: `${(stats.animeCount / watchList.length) * 100}%` }}
-                              title={`Anime: ${stats.animeCount}`}
-                            />
-                          )}
-                        </div>
-
-                        <div className="flex justify-between items-center text-xs font-semibold">
-                          <div className="flex items-center gap-1.5">
-                            <span className="w-2.5 h-2.5 rounded-full bg-primary" />
-                            <span>Movies ({stats.moviesCount})</span>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="w-2.5 h-2.5 rounded-full bg-primary-light" />
-                            <span>TV Shows ({stats.tvCount})</span>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="w-2.5 h-2.5 rounded-full bg-rating" />
-                            <span>Anime ({stats.animeCount})</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                {/* Stats Summary cards */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="bg-secondary border border-border p-5 rounded-xl text-center">
+                    <span className="text-[10px] text-muted uppercase font-bold tracking-wider block mb-1">Time Watched</span>
+                    <span className="text-2xl font-black text-foreground">{stats.estimatedHours} <span className="text-xs text-muted">hrs</span></span>
                   </div>
-
-                  {/* Right stats blocks */}
-                  <div className="flex flex-col gap-8">
-                    {/* Status breakdown */}
-                    <div className="bg-secondary border border-border p-6 rounded-xl">
-                      <h3 className="text-[10px] font-bold uppercase tracking-wider text-muted mb-4">Status Summary</h3>
-                      <div className="flex flex-col gap-3 font-semibold text-sm">
-                        <div className="flex justify-between items-center p-2.5 rounded bg-background/25 border border-border/40">
-                          <span className="text-primary-light">Watching</span>
-                          <span>{stats.watchingCount}</span>
-                        </div>
-                        <div className="flex justify-between items-center p-2.5 rounded bg-background/25 border border-border/40">
-                          <span className="text-green-500">Completed</span>
-                          <span>{stats.completedCount}</span>
-                        </div>
-                        <div className="flex justify-between items-center p-2.5 rounded bg-background/25 border border-border/40">
-                          <span className="text-muted">Plan to Watch</span>
-                          <span>{stats.planToWatchCount}</span>
-                        </div>
-                        <div className="flex justify-between items-center p-2.5 rounded bg-background/25 border border-border/40">
-                          <span className="text-amber-500">On Hold</span>
-                          <span>{stats.onHoldCount}</span>
-                        </div>
-                        <div className="flex justify-between items-center p-2.5 rounded bg-background/25 border border-border/40">
-                          <span className="text-rose-500">Dropped</span>
-                          <span>{stats.droppedCount}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Recently completed */}
-                    <div className="bg-secondary border border-border p-6 rounded-xl">
-                      <h3 className="text-[10px] font-bold uppercase tracking-wider text-muted mb-4">Recently Completed</h3>
-                      {stats.recentlyCompleted.length === 0 ? (
-                        <p className="text-xs text-muted">No completed titles logged.</p>
-                      ) : (
-                        <div className="flex flex-col gap-4">
-                          {stats.recentlyCompleted.map((item) => (
-                            <div key={item.id} className="flex items-center gap-3">
-                              <Link href={`/${item.type}/${item.sourceId}`} className="relative w-8 h-12 rounded overflow-hidden border border-border bg-background flex-shrink-0">
-                                <MediaImage src={item.cache.posterPath} alt={item.cache.title} fill sizes="32px" />
-                              </Link>
-                              <div className="flex-1 min-w-0">
-                                <Link href={`/${item.type}/${item.sourceId}`} className="font-bold text-sm text-foreground hover:text-primary transition-colors block truncate">
-                                  {item.cache.title}
-                                </Link>
-                                <span className="text-[10px] text-muted uppercase font-bold block mt-0.5">
-                                  {item.type} {item.score ? `• Rated ${item.score}/10` : ''}
-                                </span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                  <div className="bg-secondary border border-border p-5 rounded-xl text-center">
+                    <span className="text-[10px] text-muted uppercase font-bold tracking-wider block mb-1">Episodes Logged</span>
+                    <span className="text-2xl font-black text-foreground">{stats.totalEpisodes}</span>
+                  </div>
+                  <div className="bg-secondary border border-border p-5 rounded-xl text-center">
+                    <span className="text-[10px] text-muted uppercase font-bold tracking-wider block mb-1">Mean Score</span>
+                    <span className="text-2xl font-black text-rating">{stats.avgScore}</span>
+                  </div>
+                  <div className="bg-secondary border border-border p-5 rounded-xl text-center">
+                    <span className="text-[10px] text-muted uppercase font-bold tracking-wider block mb-1">Completed</span>
+                    <span className="text-2xl font-black text-green-500">{stats.completedCount}</span>
                   </div>
                 </div>
-              )}
-            </div>
+
+                {stats.totalActiveCount > 0 && (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+                    {/* Left stats blocks */}
+                    <div className="flex flex-col gap-8">
+                      {/* Score Distribution */}
+                      <div className="bg-secondary border border-border p-6 rounded-xl">
+                        <h3 className="text-[10px] font-bold uppercase tracking-wider text-muted mb-6">Score Distribution</h3>
+                        <div className="flex items-end justify-between h-48 pt-4 px-2 bg-background/25 rounded border border-border/40">
+                          {stats.scoreMap.map((count, index) => {
+                            const scoreLabel = index + 1;
+                            const heightPercent = (count / stats.maxScoreCount) * 100;
+                            return (
+                              <div key={scoreLabel} className="flex flex-col items-center flex-1 group relative">
+                                <span className="absolute bottom-full mb-1 bg-black border border-border text-foreground font-semibold text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                                  {count} item{count !== 1 ? 's' : ''}
+                                </span>
+                                <div
+                                  className="w-4 sm:w-6 bg-primary rounded-t-sm transition-all duration-500 ease-out"
+                                  style={{ height: `${heightPercent || 2}%`, opacity: heightPercent > 0 ? 1 : 0.15 }}
+                                />
+                                <span className="text-[10px] text-muted font-bold mt-2">{scoreLabel}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Formats ratio — based on actively watched (completed/watching) items only */}
+                      <div className="bg-secondary border border-border p-6 rounded-xl">
+                        <h3 className="text-[10px] font-bold uppercase tracking-wider text-muted mb-4">Formats Ratio</h3>
+                        <div className="flex flex-col gap-4">
+                          <div className="flex rounded-full overflow-hidden h-4 bg-background border border-border/50">
+                            {stats.moviesCount > 0 && (
+                              <div
+                                className="bg-primary"
+                                style={{ width: `${(stats.moviesCount / stats.totalActiveCount) * 100}%` }}
+                                title={`Movies: ${stats.moviesCount}`}
+                              />
+                            )}
+                            {stats.tvCount > 0 && (
+                              <div
+                                className="bg-primary-light"
+                                style={{ width: `${(stats.tvCount / stats.totalActiveCount) * 100}%` }}
+                                title={`TV Shows: ${stats.tvCount}`}
+                              />
+                            )}
+                            {stats.animeCount > 0 && (
+                              <div
+                                className="bg-rating"
+                                style={{ width: `${(stats.animeCount / stats.totalActiveCount) * 100}%` }}
+                                title={`Anime: ${stats.animeCount}`}
+                              />
+                            )}
+                          </div>
+
+                          <div className="flex justify-between items-center text-xs font-semibold">
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2.5 h-2.5 rounded-full bg-primary" />
+                              <span>Movies ({stats.moviesCount})</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2.5 h-2.5 rounded-full bg-primary-light" />
+                              <span>TV Shows ({stats.tvCount})</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2.5 h-2.5 rounded-full bg-rating" />
+                              <span>Anime ({stats.animeCount})</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right stats blocks */}
+                    <div className="flex flex-col gap-8">
+                      {/* Status breakdown */}
+                      <div className="bg-secondary border border-border p-6 rounded-xl">
+                        <h3 className="text-[10px] font-bold uppercase tracking-wider text-muted mb-4">Status Summary</h3>
+                        <div className="flex flex-col gap-3 font-semibold text-sm">
+                          <div className="flex justify-between items-center p-2.5 rounded bg-background/25 border border-border/40">
+                            <span className="text-primary-light">Watching</span>
+                            <span>{stats.watchingCount}</span>
+                          </div>
+                          <div className="flex justify-between items-center p-2.5 rounded bg-background/25 border border-border/40">
+                            <span className="text-green-500">Completed</span>
+                            <span>{stats.completedCount}</span>
+                          </div>
+                          <div className="flex justify-between items-center p-2.5 rounded bg-background/25 border border-border/40">
+                            <span className="text-muted">Plan to Watch</span>
+                            <span>{stats.planToWatchCount}</span>
+                          </div>
+                          <div className="flex justify-between items-center p-2.5 rounded bg-background/25 border border-border/40">
+                            <span className="text-amber-500">On Hold</span>
+                            <span>{stats.onHoldCount}</span>
+                          </div>
+                          <div className="flex justify-between items-center p-2.5 rounded bg-background/25 border border-border/40">
+                            <span className="text-rose-500">Dropped</span>
+                            <span>{stats.droppedCount}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Recently completed */}
+                      <div className="bg-secondary border border-border p-6 rounded-xl">
+                        <h3 className="text-[10px] font-bold uppercase tracking-wider text-muted mb-4">Recently Completed</h3>
+                        {stats.recentlyCompleted.length === 0 ? (
+                          <p className="text-xs text-muted">No completed titles logged.</p>
+                        ) : (
+                          <div className="flex flex-col gap-4">
+                            {stats.recentlyCompleted.map((item) => (
+                              <div key={item.id} className="flex items-center gap-3">
+                                <Link href={`/${item.type}/${item.sourceId}`} className="relative w-8 h-12 rounded overflow-hidden border border-border bg-background flex-shrink-0">
+                                  <MediaImage src={item.cache.posterPath} alt={item.cache.title} fill sizes="32px" />
+                                </Link>
+                                <div className="flex-1 min-w-0">
+                                  <Link href={`/${item.type}/${item.sourceId}`} className="font-bold text-sm text-foreground hover:text-primary transition-colors block truncate">
+                                    {item.cache.title}
+                                  </Link>
+                                  <span className="text-[10px] text-muted uppercase font-bold block mt-0.5">
+                                    {item.type} {item.score ? `• Rated ${item.score}/10` : ''}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
           )}
 
           {/* TAB 3: Settings Panel (Owner only) */}
@@ -821,8 +999,6 @@ export default function ProfilePageClient({
               </div>
             </div>
           )}
-        </>
-      )}
     </main>
   );
 }

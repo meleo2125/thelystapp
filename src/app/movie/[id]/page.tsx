@@ -39,7 +39,8 @@ async function getMovieDetail(idStr: string) {
       return null;
     }
     console.error('Error fetching movie details inside Server Component:', err);
-    throw err;
+    // Gracefully handle transient network errors instead of crashing
+    return null;
   }
 }
 

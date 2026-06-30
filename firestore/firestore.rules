@@ -1,0 +1,137 @@
+rules_version = '2';
+
+/*
+ * Firestore security rules — consistent with the existing collection layout
+ * and updated for Tasks 2 & 3 (custom Lysts + public Lyst likes).
+ *
+ * Conventions:
+ *   - All writes are gated by Firebase Auth uid match (resource owner).
+ *   - Public reads are allowed only where explicitly safe (public lysts,
+ *     usernames, lyst leaderboard index).
+ *   - Server-side privileged writes go through the Admin SDK
+ *     (firebaseAdmin) and are NOT subject to these rules.
+ */
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /* ---------- helpers ---------- */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    /* ---------- users ---------- */
+    match /users/{uid} {
+      // Public read of user metadata (name, username, follower counts).
+      // Email and other PII should be filtered server-side.
+      allow read: if true;
+      allow create, update: if isOwner(uid);
+      allow delete: if isOwner(uid);
+
+      // Default watchlyst entries
+      match /listEntries/{entryId} {
+        allow read: if isOwner(uid)
+          // Followers / public-profile viewers go through Admin SDK; deny direct.
+          ;
+        allow write: if isOwner(uid);
+      }
+
+      // Custom Lysts (Task 2)
+      match /lysts/{lystId} {
+        allow read: if isOwner(uid) || resource.data.isPublic == true;
+        allow create, update, delete: if isOwner(uid);
+
+        match /items/{entryId} {
+          allow read: if isOwner(uid)
+            || get(/databases/$(database)/documents/users/$(uid)/lysts/$(lystId)).data.isPublic == true;
+          allow write: if isOwner(uid);
+        }
+      }
+
+      // Notifications: only the user can read or mark them.
+      match /notifications/{notifId} {
+        allow read, write: if isOwner(uid);
+      }
+    }
+
+    /* ---------- usernames (uniqueness index) ---------- */
+    match /usernames/{username} {
+      allow read: if true;
+      // Server-only writes (the username-claim transaction runs via Admin SDK).
+      allow write: if false;
+    }
+
+    /* ---------- follows ---------- */
+    match /follows/{uid}/following/{otherUid} {
+      // Owner reads/writes via Admin SDK; deny direct writes from clients.
+      allow read: if isOwner(uid) || isOwner(otherUid);
+      allow write: if false;
+    }
+    match /follows/{uid}/followers/{otherUid} {
+      allow read: if isOwner(uid) || isOwner(otherUid);
+      allow write: if false;
+    }
+
+    /* ---------- follow requests ---------- */
+    match /followRequests/{id} {
+      // Read only by the target or the requester (parsed from doc fields).
+      allow read: if isSignedIn()
+        && (request.auth.uid == resource.data.targetUid
+            || request.auth.uid == resource.data.requesterUid);
+      allow write: if false; // Admin SDK only.
+    }
+
+    /* ---------- activities ---------- */
+    match /activities/{id} {
+      // Public feed read; writes are Admin SDK only.
+      allow read: if true;
+      allow write: if false;
+    }
+
+    /* ---------- reviews ---------- */
+    match /reviews/{mediaKey} {
+      allow read: if true;
+      allow write: if false;
+    }
+    match /reviews/{mediaKey}/userReviews/{uid} {
+      allow read: if true;
+      // Only the author of the review can write it.
+      allow create, update, delete: if isOwner(uid);
+
+      match /votes/{voterUid} {
+        allow read: if true;
+        allow write: if isOwner(voterUid);
+      }
+    }
+
+    /* ---------- OTPs / password resets (Admin SDK only) ---------- */
+    match /otps/{email} {
+      allow read, write: if false;
+    }
+    match /passwordResets/{email} {
+      allow read, write: if false;
+    }
+
+    /* ---------- Lyst likes (Task 3) ---------- */
+    /*
+     * Index doc:  lystLikes/{ownerUid_lystId}
+     *   - read   public (leaderboard queries the doc + its votes)
+     *   - write  Admin SDK only
+     * Votes doc:  lystLikes/{ownerUid_lystId}/votes/{voterUid}
+     *   - read   public
+     *   - write  the voter (so they can change their vote)
+     */
+    match /lystLikes/{idxId} {
+      allow read: if true;
+      allow write: if false;
+
+      match /votes/{voterUid} {
+        allow read: if true;
+        allow create, update, delete: if isOwner(voterUid);
+      }
+    }
+  }
+}

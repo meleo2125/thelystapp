@@ -5,7 +5,8 @@ import {
   markNotificationsAsRead, 
   acceptFollowRequest, 
   declineFollowRequest, 
-  getUserProfile 
+  getUserProfile,
+  dismissAllNotifications 
 } from '@/../backend/db';
 import { rateLimit } from '@/lib/rateLimit';
 import { z } from 'zod';
@@ -98,6 +99,26 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error('Error processing follow request action:', err);
+    return NextResponse.json({ error: 'internal_error' }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: NextRequest): Promise<NextResponse> {
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0] ?? 'unknown';
+  if (!rateLimit(ip, 30, 60_000)) {
+    return NextResponse.json({ error: 'rate_limited' }, { status: 429 });
+  }
+
+  const user = await getSessionUser();
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  try {
+    await dismissAllNotifications(user.uid);
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error('Error dismissing notifications:', err);
     return NextResponse.json({ error: 'internal_error' }, { status: 500 });
   }
 }
