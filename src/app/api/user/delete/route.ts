@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb, adminAuth } from '../../../../../backend/firebaseAdmin';
+import { adminDb, adminAuth } from '@/backend/firebaseAdmin';
 import { getSessionUser } from '@/lib/firebase/sessions';
 
 async function deleteSnapshot(snapshot: FirebaseFirestore.QuerySnapshot) {

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { useAuth } from '@/../backend/AuthContext';
+import { useAuth } from '@/backend/AuthContext';
 import Button from '@/components/ui/Button';
 
 export function LandingHeaderAuth() {

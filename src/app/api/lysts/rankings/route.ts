@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTopPublicLysts } from '@/../backend/db';
+import { getTopPublicLysts } from '@/backend/db';
 import { rateLimit } from '@/lib/rateLimit';
 import { z } from 'zod';
 

@@ -6,7 +6,7 @@ import {
   deleteListEntry,
   logActivity,
   getUserProfile,
-} from '@/../backend/db';
+} from '@/backend/db';
 import { updateEntrySchema } from '@/lib/validation/list';
 import { rateLimit } from '@/lib/rateLimit';
 

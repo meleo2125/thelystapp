@@ -7,7 +7,7 @@ import {
   getLyst,
   getLystItems,
   getUserVoteOnLyst,
-} from '@/../backend/db';
+} from '@/backend/db';
 import { getSessionUser } from '@/lib/firebase/sessions';
 import PublicLystClient from '@/components/social/PublicLystClient';
 

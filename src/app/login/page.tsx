@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
-import { useAuth } from '../../../backend/AuthContext';
+import { useAuth } from '@/backend/AuthContext';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import AuthLayout from '@/components/AuthLayout';

@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
-import { useAuth } from '../../../../backend/AuthContext';
+import { useAuth } from '@/backend/AuthContext';
 import { useList } from '@/hooks/useList';
 import Button from '@/components/ui/Button';
 import MediaImage from '@/components/ui/MediaImage';

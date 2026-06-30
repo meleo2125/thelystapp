@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { AuthProvider } from '../../backend/AuthContext';
+import { AuthProvider } from '@/backend/AuthContext';
 import { Toaster } from 'react-hot-toast';
 import { DialogProvider } from '@/lib/ui/dialogs';
 

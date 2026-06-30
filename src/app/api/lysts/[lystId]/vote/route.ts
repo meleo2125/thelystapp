@@ -6,7 +6,7 @@ import {
   getLyst,
   getUserProfile,
   createSystemNotification,
-} from '@/../backend/db';
+} from '@/backend/db';
 import { lystVoteSchema } from '@/lib/validation/list';
 import { rateLimit } from '@/lib/rateLimit';
 

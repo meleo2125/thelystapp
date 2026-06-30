@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminAuth, adminDb } from '../../../../../backend/firebaseAdmin';
+import { adminAuth, adminDb } from '@/backend/firebaseAdmin';
 import { Timestamp } from 'firebase-admin/firestore';
 import { z } from 'zod';
 import crypto from 'crypto';
@@ -81,7 +81,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const resetLink = `${baseUrl}/reset-password?token=${token}&email=${encodeURIComponent(email)}`;
 
     // Send via our Nodemailer transporter
-    const { sendResetEmail } = await import('../../../../../backend/mailer');
+    const { sendResetEmail } = await import('@/backend/mailer');
     await sendResetEmail(email, resetLink);
 
     return NextResponse.json({ success: true });

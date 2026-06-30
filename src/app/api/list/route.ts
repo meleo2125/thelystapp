@@ -10,7 +10,7 @@ import {
   getLyst,
   logActivity,
   getUserProfile,
-} from '@/../backend/db';
+} from '@/backend/db';
 import { createEntrySchema } from '@/lib/validation/list';
 import { getDeterministicEntryId } from '@/lib/list/entryId';
 import { rateLimit } from '@/lib/rateLimit';

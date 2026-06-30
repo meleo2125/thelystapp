@@ -6,7 +6,7 @@ import {
   getLyst,
   upsertListEntry,
   getListEntry,
-} from '@/../backend/db';
+} from '@/backend/db';
 import { lystItemAddSchema } from '@/lib/validation/list';
 import { getDeterministicEntryId } from '@/lib/list/entryId';
 import { rateLimit } from '@/lib/rateLimit';

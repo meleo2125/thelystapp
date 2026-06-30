@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUser } from '@/lib/firebase/sessions';
 import { rateLimit } from '@/lib/rateLimit';
-import { adminDb } from '@/../backend/firebaseAdmin';
+import { adminDb } from '@/backend/firebaseAdmin';
 import { getDeterministicEntryId } from '@/lib/list/entryId';
 import { MediaType } from '@/types/media';
 

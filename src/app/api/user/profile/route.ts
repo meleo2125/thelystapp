@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUser } from '@/lib/firebase/sessions';
-import { getUserProfile } from '@/../backend/db';
-import { adminDb } from '@/../backend/firebaseAdmin';
+import { getUserProfile } from '@/backend/db';
+import { adminDb } from '@/backend/firebaseAdmin';
 import { rateLimit } from '@/lib/rateLimit';
 import { z } from 'zod';
 

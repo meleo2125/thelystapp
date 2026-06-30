@@ -3,9 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useAuth } from '@/../backend/AuthContext';
+import { useAuth } from '@/backend/AuthContext';
 import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/../backend/firebase';
+import { db } from '@/backend/firebase';
 
 export default function BottomNav() {
   const pathname = usePathname();

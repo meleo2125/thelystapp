@@ -1,5 +1,5 @@
 import { cookies } from 'next/headers';
-import { adminAuth } from '@/../backend/firebaseAdmin';
+import { adminAuth } from '@/backend/firebaseAdmin';
 
 export interface SessionUser {
   uid: string;

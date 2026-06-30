@@ -7,7 +7,7 @@ import {
   getUserByUsername,
   getPublicUserLysts,
   logActivity,
-} from '@/../backend/db';
+} from '@/backend/db';
 import { createLystSchema } from '@/lib/validation/list';
 import { rateLimit } from '@/lib/rateLimit';
 

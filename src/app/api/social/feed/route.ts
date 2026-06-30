@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUser } from '@/lib/firebase/sessions';
-import { getFollowingActivities } from '@/../backend/db';
+import { getFollowingActivities } from '@/backend/db';
 import { rateLimit } from '@/lib/rateLimit';
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
@@ -37,7 +37,7 @@ export async function DELETE(req: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    const { clearUserFeed } = await import('@/../backend/db');
+    const { clearUserFeed } = await import('@/backend/db');
     await clearUserFeed(user.uid);
     return NextResponse.json({ success: true });
   } catch (err: unknown) {

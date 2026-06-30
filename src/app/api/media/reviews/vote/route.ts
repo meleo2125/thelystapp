@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUser } from '@/lib/firebase/sessions';
-import { voteReview, getUserVoteOnReview } from '@/../backend/db';
+import { voteReview, getUserVoteOnReview } from '@/backend/db';
 import { rateLimit } from '@/lib/rateLimit';
 import { z } from 'zod';
 
@@ -75,7 +75,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     // If voting user is not the review author, manage notifications
     if (user.uid !== reviewUid) {
-      const { adminDb } = await import('@/../backend/firebaseAdmin');
+      const { adminDb } = await import('@/backend/firebaseAdmin');
       const notificationId = `${user.uid}_like_${type}_${sourceId}`;
       const notifRef = adminDb
         .collection('users')
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         .doc(notificationId);
 
       if (voteType === 'like') {
-        const { getUserProfile } = await import('@/../backend/db');
+        const { getUserProfile } = await import('@/backend/db');
         const voterProfile = await getUserProfile(user.uid);
         await notifRef.set({
           id: notificationId,

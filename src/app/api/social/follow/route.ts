@@ -8,7 +8,7 @@ import {
   getFollowStatus, 
   requestFollow, 
   cancelFollowRequest 
-} from '@/../backend/db';
+} from '@/backend/db';
 import { rateLimit } from '@/lib/rateLimit';
 import { z } from 'zod';
 
@@ -79,7 +79,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       const followerProfile = await getUserProfile(currentUser.uid);
       if (followerProfile) {
         // Write notification to target user
-        const { adminDb } = await import('@/../backend/firebaseAdmin');
+        const { adminDb } = await import('@/backend/firebaseAdmin');
         await adminDb
           .collection('users')
           .doc(targetUid)

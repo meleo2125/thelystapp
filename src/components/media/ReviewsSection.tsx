@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import Button from '@/components/ui/Button';
-import { useAuth } from '@/../backend/AuthContext';
+import { useAuth } from '@/backend/AuthContext';
 import { useDialogs } from '@/lib/ui/dialogs';
 
 interface Review {

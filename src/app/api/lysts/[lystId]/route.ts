@@ -6,7 +6,7 @@ import {
   deleteLyst,
   getLystItems,
   getUserVoteOnLyst,
-} from '@/../backend/db';
+} from '@/backend/db';
 import { updateLystSchema } from '@/lib/validation/list';
 import { rateLimit } from '@/lib/rateLimit';
 

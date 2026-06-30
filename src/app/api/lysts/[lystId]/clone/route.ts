@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUser } from '@/lib/firebase/sessions';
-import { cloneLyst, getUserProfile, getLyst } from '@/../backend/db';
+import { cloneLyst, getUserProfile, getLyst } from '@/backend/db';
 import { rateLimit } from '@/lib/rateLimit';
 
 interface RouteContext {

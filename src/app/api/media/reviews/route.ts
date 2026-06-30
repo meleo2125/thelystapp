@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUser } from '@/lib/firebase/sessions';
-import { upsertReview, deleteReview, getReviews, getUserProfile, logActivity } from '@/../backend/db';
+import { upsertReview, deleteReview, getReviews, getUserProfile, logActivity } from '@/backend/db';
 import { rateLimit } from '@/lib/rateLimit';
 import { z } from 'zod';
 
@@ -48,7 +48,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     let reviewsWithVotes = list;
 
     if (user) {
-      const { getUserVoteOnReview } = await import('@/../backend/db');
+      const { getUserVoteOnReview } = await import('@/backend/db');
       reviewsWithVotes = await Promise.all(
         list.map(async (rev) => {
           const userVote = await getUserVoteOnReview(validation.data.type, validation.data.sourceId, rev.uid, user.uid);

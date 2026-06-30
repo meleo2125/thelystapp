@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
-import { useAuth } from '@/../backend/AuthContext';
+import { useAuth } from '@/backend/AuthContext';
 import { useList } from '@/hooks/useList';
 import { useLysts } from '@/hooks/useLysts';
 import { useDialogs } from '@/lib/ui/dialogs';

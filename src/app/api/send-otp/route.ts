@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateOTP, storeOTP, sendOTPEmail } from '../../../../backend/mailer';
+import { generateOTP, storeOTP, sendOTPEmail } from '@/backend/mailer';
 import { z } from 'zod';
 
 const postSchema = z.object({

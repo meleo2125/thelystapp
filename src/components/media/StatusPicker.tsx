@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
-import { useAuth } from '@/../backend/AuthContext';
+import { useAuth } from '@/backend/AuthContext';
 import { useListEntry } from '@/hooks/useListEntry';
 import { useDialogs } from '@/lib/ui/dialogs';
 import { ListStatus } from '@/types/list';

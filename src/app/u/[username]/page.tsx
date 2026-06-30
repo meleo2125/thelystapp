@@ -2,7 +2,7 @@ import React from 'react';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { Metadata } from 'next';
-import { getUserByUsername } from '@/../backend/db';
+import { getUserByUsername } from '@/backend/db';
 import { getSessionUser } from '@/lib/firebase/sessions';
 import ProfilePageClient from '@/components/social/ProfilePageClient';
 
@@ -36,7 +36,7 @@ export default async function UserProfilePage({ params }: ProfilePageProps) {
   // Check Follow Status
   let followStatus: 'following' | 'requested' | 'none' = 'none';
   if (currentUser && !isOwner) {
-    const { getFollowStatus } = await import('@/../backend/db');
+    const { getFollowStatus } = await import('@/backend/db');
     followStatus = await getFollowStatus(currentUser.uid, profile.uid);
   }
 

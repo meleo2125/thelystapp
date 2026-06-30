@@ -7,7 +7,7 @@ import {
   declineFollowRequest, 
   getUserProfile,
   dismissAllNotifications 
-} from '@/../backend/db';
+} from '@/backend/db';
 import { rateLimit } from '@/lib/rateLimit';
 import { z } from 'zod';
 
