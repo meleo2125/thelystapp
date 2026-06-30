@@ -12,11 +12,6 @@ export async function proxy(request: NextRequest) {
   // Public pages accessible to both authenticated and unauthenticated users
   const publicPages = ['/', '/movie', '/tv', '/anime'];
   const isPublicPage = publicPages.some(route => pathname === route || (route !== '/' && pathname.startsWith(route)));
-
-  // API routes should be handled separately
-  if (pathname.startsWith('/api')) {
-    return NextResponse.next();
-  }
   
   // For security, treat session as valid only if it exists
   const hasSession = !!session?.value;
@@ -37,5 +32,11 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|public).*)'],
-}; 
+  // Match all paths except:
+  // - api routes (e.g. /api/user)
+  // - next static files (e.g. /_next/static)
+  // - next image optimization (e.g. /_next/image)
+  // - favicon.ico
+  // - files with extensions (e.g. /poster-fallback.svg, /logo.png, etc.)
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|.*\\..*$).*)'],
+};
